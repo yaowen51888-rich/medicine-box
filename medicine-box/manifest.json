@@ -1,0 +1,15 @@
+{
+  "name": "药箱管家 · 家庭药品效期提醒",
+  "short_name": "药箱管家",
+  "description": "拍照录入药品，自动识别药名和有效期，过期前提醒你该扔的药。",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F5F5F2",
+  "theme_color": "#F5F5F2",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
