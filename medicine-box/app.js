@@ -175,3 +175,84 @@ function compressImage(file) {
     img.src = url;
   });
 }
+
+// ---------- UI 路由与渲染 ----------
+
+const GROUP_LABELS = { expired: "已过期", expiring: "即将过期", ok: "正常" };
+let thumbUrls = [];
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function revokeThumbs() {
+  thumbUrls.forEach(u => URL.revokeObjectURL(u));
+  thumbUrls = [];
+}
+
+function route() {
+  const hash = location.hash || "#/";
+  const views = { "/": "view-home", "/add": "view-add", "/settings": "view-settings" };
+  const detailMatch = hash.match(/^#\/detail\/(\d+)$/);
+  const key = detailMatch ? "detail" : (views[hash.slice(1)] ? hash.slice(1) : "/");
+  document.querySelectorAll(".view").forEach(v => { v.hidden = v.id !== (key === "detail" ? "view-detail" : views[key]); });
+  document.querySelectorAll(".tab").forEach(t => {
+    if (t.dataset.nav === key) t.setAttribute("aria-current", "page");
+    else t.removeAttribute("aria-current");
+  });
+  if (key === "/") renderHome();
+  if (key === "detail") renderDetail(Number(detailMatch[1]));
+}
+
+async function renderHome() {
+  const remindDays = getCfg().remindDays;
+  let meds = [];
+  try { meds = (await dbAll()).filter(m => m.status === "active"); }
+  catch { document.getElementById("storage-banner").hidden = false; return; }
+
+  const stats = document.getElementById("stats");
+  const list = document.getElementById("home-list");
+  const empty = document.getElementById("home-empty");
+  const groups = { expired: [], expiring: [], ok: [] };
+  meds.forEach(m => groups[statusOf(m.expiry, new Date(), remindDays)].push(m));
+
+  stats.innerHTML = `
+    <div class="stat"><b>${meds.length}</b><span>在箱</span></div>
+    <div class="stat is-red"><b>${groups.expired.length}</b><span>已过期</span></div>
+    <div class="stat is-orange"><b>${groups.expiring.length}</b><span>${remindDays} 天内到期</span></div>`;
+
+  empty.hidden = meds.length > 0;
+  revokeThumbs();
+  list.innerHTML = Object.entries(groups).filter(([, arr]) => arr.length).map(([st, arr]) => `
+    <section class="med-group st-${st}">
+      <h2><span class="dot"></span>${GROUP_LABELS[st]}<span class="count">${arr.length}</span></h2>
+      ${arr.map(m => {
+        const n = daysUntil(m.expiry);
+        const days = n < 0 ? `已过期 ${-n} 天` : `剩 ${n} 天`;
+        const thumb = m.photo
+          ? `<img class="med-thumb" src="${thumbUrls[thumbUrls.push(URL.createObjectURL(m.photo)) - 1]}" alt="${escapeHtml(m.name)}">`
+          : `<div class="med-thumb-placeholder" aria-hidden="true">💊</div>`;
+        return `<button class="med-item" data-id="${m.id}">${thumb}
+          <span class="med-info"><span class="med-name">${escapeHtml(m.name)}</span><br>
+          <span class="med-expiry">${escapeHtml(m.expiry)}</span></span>
+          <span class="med-days">${days}</span></button>`;
+      }).join("")}
+    </section>`).join("");
+
+  list.querySelectorAll(".med-item").forEach(btn =>
+    btn.addEventListener("click", () => { location.hash = "#/detail/" + btn.dataset.id; }));
+}
+
+function renderDetail() { /* Task 6 实现 */ }
+
+function initApp() {
+  if (!document.getElementById("app")) return;
+  window.addEventListener("hashchange", route);
+  dbOpen().catch(() => {
+    document.getElementById("storage-banner").hidden = false;
+    document.getElementById("fab-add").disabled = true;
+  });
+  route();
+}
+
+document.addEventListener("DOMContentLoaded", initApp);
