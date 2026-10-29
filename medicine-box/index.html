@@ -81,14 +81,68 @@
     </form>
   </section>
 
-  <!-- 详情（Task 6 填充） -->
+  <!-- 详情 -->
   <section id="view-detail" class="view" hidden>
-    <p>详情页建设中</p>
+    <header class="page-head">
+      <h1>药品详情</h1>
+      <p class="sub">核对信息，处理过期药</p>
+    </header>
+
+    <div id="detail-photo"></div>
+
+    <form id="detail-form" novalidate>
+      <div class="field">
+        <label for="d-name">药名</label>
+        <input id="d-name" type="text" autocomplete="off">
+        <p class="field-error" hidden>请填写药名</p>
+      </div>
+      <div class="field">
+        <label for="d-expiry">有效期至</label>
+        <input id="d-expiry" type="date">
+        <p class="field-error" hidden>请选择有效期</p>
+      </div>
+      <div class="field">
+        <label for="d-note">备注</label>
+        <input id="d-note" type="text">
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">保存修改</button>
+    </form>
+
+    <div class="danger-zone">
+      <button id="btn-dispose" class="btn btn-block" type="button">已扔掉 / 已用完</button>
+      <button id="btn-delete" class="btn btn-danger btn-block" type="button">删除记录</button>
+    </div>
   </section>
 
-  <!-- 设置（Task 6 填充） -->
+  <!-- 设置 -->
   <section id="view-settings" class="view" hidden>
-    <p>设置页建设中</p>
+    <header class="page-head">
+      <h1>设置</h1>
+      <p class="sub">识别服务与提醒偏好</p>
+    </header>
+
+    <form id="settings-form" novalidate>
+      <div class="field">
+        <label for="s-base">API 地址</label>
+        <input id="s-base" type="text" placeholder="https://open.bigmodel.cn/api/paas/v4">
+      </div>
+      <div class="field">
+        <label for="s-key">API Key</label>
+        <input id="s-key" type="password" placeholder="仅存于本机浏览器">
+      </div>
+      <div class="field">
+        <label for="s-model">模型</label>
+        <input id="s-model" type="text" placeholder="glm-4v-flash">
+      </div>
+      <div class="field">
+        <label for="s-remind">提前提醒天数</label>
+        <input id="s-remind" type="number" min="0" placeholder="30">
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">保存设置</button>
+      <p id="settings-saved" class="recognize-status" aria-live="polite"></p>
+    </form>
+
+    <p class="settings-foot">Key 仅存于本机浏览器，用于直接调用你自己配置的识别服务。</p>
   </section>
 
 </main>

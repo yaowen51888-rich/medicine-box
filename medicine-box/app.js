@@ -202,6 +202,7 @@ function route() {
   });
   if (key === "/") renderHome();
   if (key === "/add") resetAddForm();
+  if (key === "/settings") loadSettings();
   if (key === "detail") renderDetail(Number(detailMatch[1]));
 }
 
@@ -244,7 +245,87 @@ async function renderHome() {
     btn.addEventListener("click", () => { location.hash = "#/detail/" + btn.dataset.id; }));
 }
 
-function renderDetail() { /* Task 6 实现 */ }
+// ---------- 详情屏 ----------
+
+let detailId = null;
+let detailPhotoUrl = null;
+
+async function renderDetail(id) {
+  const m = await dbGet(id);
+  if (!m) { location.hash = "#/"; return; }
+  detailId = id;
+  const wrap = document.getElementById("detail-photo");
+  if (detailPhotoUrl) { URL.revokeObjectURL(detailPhotoUrl); detailPhotoUrl = null; }
+  if (m.photo) {
+    detailPhotoUrl = URL.createObjectURL(m.photo);
+    wrap.innerHTML = `<img src="${detailPhotoUrl}" alt="${escapeHtml(m.name)}">`;
+  } else {
+    wrap.innerHTML = `<div class="detail-photo-placeholder" aria-hidden="true">💊</div>`;
+  }
+  document.getElementById("d-name").value = m.name;
+  document.getElementById("d-expiry").value = m.expiry;
+  document.getElementById("d-note").value = m.note || "";
+  ["d-name", "d-expiry"].forEach(fid => setFieldError(document.getElementById(fid), false));
+}
+
+function wireDetailScreen() {
+  document.getElementById("detail-form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const name = document.getElementById("d-name");
+    const expiry = document.getElementById("d-expiry");
+    const nameOk = !!name.value.trim();
+    const expiryOk = !!expiry.value;
+    setFieldError(name, !nameOk);
+    setFieldError(expiry, !expiryOk);
+    if (!nameOk || !expiryOk || detailId === null) return;
+    const m = await dbGet(detailId);
+    if (!m) { location.hash = "#/"; return; }
+    m.name = name.value.trim();
+    m.expiry = expiry.value;
+    m.note = document.getElementById("d-note").value.trim();
+    await dbUpdate(m);
+    location.hash = "#/";
+  });
+  document.getElementById("btn-dispose").addEventListener("click", async () => {
+    const m = detailId === null ? null : await dbGet(detailId);
+    if (!m) { location.hash = "#/"; return; }
+    m.status = "disposed";
+    await dbUpdate(m);
+    location.hash = "#/";
+  });
+  document.getElementById("btn-delete").addEventListener("click", async () => {
+    if (detailId === null) return;
+    if (!window.confirm("确定删除这条记录？删除后无法恢复。")) return;
+    await dbDelete(detailId);
+    detailId = null;
+    location.hash = "#/";
+  });
+}
+
+// ---------- 设置屏 ----------
+
+function loadSettings() {
+  const cfg = getCfg();
+  document.getElementById("s-base").value = cfg.base;
+  document.getElementById("s-key").value = cfg.key;
+  document.getElementById("s-model").value = cfg.model;
+  document.getElementById("s-remind").value = cfg.remindDays;
+  document.getElementById("settings-saved").textContent = "";
+}
+
+function wireSettingsScreen() {
+  document.getElementById("settings-form").addEventListener("submit", e => {
+    e.preventDefault();
+    const remind = parseInt(document.getElementById("s-remind").value, 10);
+    saveCfg({
+      base: document.getElementById("s-base").value.trim(),
+      key: document.getElementById("s-key").value.trim(),
+      model: document.getElementById("s-model").value.trim(),
+      remindDays: Number.isFinite(remind) && remind >= 0 ? remind : CFG_DEFAULTS.remindDays,
+    });
+    document.getElementById("settings-saved").textContent = "已保存";
+  });
+}
 
 // ---------- 录入屏 ----------
 
@@ -342,6 +423,8 @@ function initApp() {
   if (!document.getElementById("app")) return;
   window.addEventListener("hashchange", route);
   wireAddScreen();
+  wireDetailScreen();
+  wireSettingsScreen();
   dbOpen().catch(() => {
     document.getElementById("storage-banner").hidden = false;
     document.getElementById("fab-add").disabled = true;
