@@ -15,6 +15,10 @@ function check(fn, msg) {
   try { results.push([!!fn(), msg]); }
   catch (e) { results.push([false, msg + " — " + e.message]); }
 }
+async function checkA(fn, msg) {
+  try { results.push([!!(await fn()), msg]); }
+  catch (e) { results.push([false, msg + " — " + e.message]); }
+}
 
 const T = new Date(2026, 9, 29); // 2026-10-29 本地
 check(() => daysUntil("2026-10-29", T) === 0, "当天=0");
@@ -28,6 +32,39 @@ check(() => statusOf("2026-11-28", T, 30) === "expiring", "剩30天=expiring");
 check(() => statusOf("2026-11-29", T, 30) === "ok", "剩31天=ok");
 check(() => statusOf("2026-11-06", T, 7) === "ok", "自定义remindDays");
 
+(async () => {
+  // cfg 默认值与回写
+  await checkA(() => getCfg().base === "https://open.bigmodel.cn/api/paas/v4"
+    && getCfg().model === "glm-4v-flash" && getCfg().remindDays === 30, "cfg默认值");
+  await checkA(() => {
+    saveCfg({ remindDays: 7, key: "sk-test" });
+    return getCfg().remindDays === 7 && getCfg().key === "sk-test";
+  }, "cfg回写");
+  try { saveCfg({ remindDays: 30, key: "" }); } catch (e) {}
+
+  // db 往返
+  let id, m;
+  await checkA(async () => {
+    id = await dbAdd({ name: "测试药", expiry: "2027-01-01", note: "", photo: null });
+    return typeof id === "number" && id >= 1;
+  }, "add返回自增id");
+  await checkA(async () => {
+    m = await dbGet(id);
+    return !!m && m.name === "测试药" && m.status === "active" && m.createdAt > 0;
+  }, "get字段完整");
+  await checkA(async () => {
+    m.expiry = "2028-01-01"; m.status = "disposed";
+    await dbUpdate(m);
+    return (await dbGet(id)).expiry === "2028-01-01";
+  }, "update生效");
+  await checkA(async () => {
+    await dbDelete(id);
+    return (await dbGet(id)) === undefined;
+  }, "delete生效");
+
+  renderResults();
+})();
+
 function renderResults() {
   const el = document.getElementById("result");
   const passed = results.filter(r => r[0]).length;
@@ -37,7 +74,6 @@ function renderResults() {
   ).join("") + `<p><b>${passed} passed, ${failed} failed</b></p>`;
   console.log(`${passed} passed, ${failed} failed`);
 }
-renderResults();
 </script>
 </body>
 </html>
