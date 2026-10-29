@@ -39,6 +39,11 @@ check(() => JSON.stringify(P('```json\n{"name":"感冒灵颗粒","expiry":null}\
 check(() => P('{"name":"x","expiry":"2027/05/31"}').expiry === null, "非法日期→null");
 check(() => P("前置说明 {\"name\":\"y\",\"expiry\":\"2027-05-31\"} 后缀").name === "y", "前后杂文本");
 check(() => P("完全不是JSON").name === null && P("完全不是JSON").expiry === null, "垃圾文本→双null");
+// M2: 日历有效性（正则只管格式，不管真实日期）
+check(() => P('{"name":"x","expiry":"2027-02-30"}').expiry === null, "2月30日→null");
+check(() => P('{"name":"x","expiry":"2027-13-01"}').expiry === null, "13月→null");
+check(() => P('{"name":"x","expiry":"2027-02-28"}').expiry === "2027-02-28", "平年2-28保留");
+check(() => P('{"name":"x","expiry":"2028-02-29"}').expiry === "2028-02-29", "闰年2-29保留");
 check(() => {
   const body = buildVisionBody("QUJD", "glm-4v-flash");
   return body.model === "glm-4v-flash" && body.response_format.type === "json_object";

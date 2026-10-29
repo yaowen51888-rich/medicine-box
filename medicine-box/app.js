@@ -110,6 +110,13 @@ const AI_PROMPT = `你是药品信息提取助手。请从这张药品包装照�
 2. expiry: 有效期截止日期，换算为绝对日期，格式 YYYY-MM-DD；包装上只有年月时按该月最后一天；识别不出或无法换算返回 null，不要猜测
 只返回 JSON：{"name": "..." | null, "expiry": "YYYY-MM-DD" | null}`;
 
+function isValidDate(s) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const [y, m, d] = s.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+
 function parseAIResponse(text) {
   try {
     let t = String(text).trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
@@ -118,7 +125,7 @@ function parseAIResponse(text) {
     catch { const m = t.match(/\{[\s\S]*\}/); obj = m ? JSON.parse(m[0]) : null; }
     if (!obj || typeof obj !== "object") throw new Error("not an object");
     const name = typeof obj.name === "string" && obj.name.trim() ? obj.name.trim() : null;
-    const expiry = typeof obj.expiry === "string" && /^\d{4}-\d{2}-\d{2}$/.test(obj.expiry) ? obj.expiry : null;
+    const expiry = typeof obj.expiry === "string" && isValidDate(obj.expiry) ? obj.expiry : null;
     return { name, expiry };
   } catch { return { name: null, expiry: null }; }
 }
@@ -219,6 +226,7 @@ async function renderHome() {
   let meds = [];
   try { meds = (await dbAll()).filter(m => m.status === "active"); }
   catch { document.getElementById("storage-banner").hidden = false; return; }
+  meds.sort((a, b) => a.expiry < b.expiry ? -1 : a.expiry > b.expiry ? 1 : 0); // 组内按效期升序（分组保持相对顺序）
 
   const stats = document.getElementById("stats");
   const list = document.getElementById("home-list");
