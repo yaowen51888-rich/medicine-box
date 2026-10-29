@@ -32,6 +32,20 @@ check(() => statusOf("2026-11-28", T, 30) === "expiring", "剩30天=expiring");
 check(() => statusOf("2026-11-29", T, 30) === "ok", "剩31天=ok");
 check(() => statusOf("2026-11-06", T, 7) === "ok", "自定义remindDays");
 
+// AI 模块
+let P; try { P = parseAIResponse; } catch (e) {}
+check(() => JSON.stringify(P('{"name":"布洛芬缓释胶囊","expiry":"2027-05-31"}')) === '{"name":"布洛芬缓释胶囊","expiry":"2027-05-31"}', "正常JSON");
+check(() => JSON.stringify(P('```json\n{"name":"感冒灵颗粒","expiry":null}\n```')) === '{"name":"感冒灵颗粒","expiry":null}', "围栏剥离");
+check(() => P('{"name":"x","expiry":"2027/05/31"}').expiry === null, "非法日期→null");
+check(() => P("前置说明 {\"name\":\"y\",\"expiry\":\"2027-05-31\"} 后缀").name === "y", "前后杂文本");
+check(() => P("完全不是JSON").name === null && P("完全不是JSON").expiry === null, "垃圾文本→双null");
+check(() => {
+  const body = buildVisionBody("QUJD", "glm-4v-flash");
+  return body.model === "glm-4v-flash" && body.response_format.type === "json_object";
+}, "body结构");
+check(() => buildVisionBody("QUJD", "m").messages[0].content[0].image_url.url === "data:image/jpeg;base64,QUJD", "图片dataURL");
+check(() => buildVisionBody("QUJD", "m").messages[0].content[1].text === AI_PROMPT, "prompt进body");
+
 (async () => {
   // cfg 默认值与回写
   await checkA(() => getCfg().base === "https://open.bigmodel.cn/api/paas/v4"
