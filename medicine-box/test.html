@@ -76,6 +76,38 @@ check(() => buildVisionBody("QUJD", "m").messages[0].content[1].text === AI_PROM
     return (await dbGet(id)) === undefined;
   }, "delete生效");
 
+  // AI 失败原因（spec §8：行内提示原因）
+  await checkA(async () => {
+    saveCfg({ key: "" });
+    const r = await callVisionAPI("QQ==");
+    return r.ok === false && r.reason.indexOf("Key") >= 0;
+  }, "无Key→原因");
+  await checkA(async () => {
+    saveCfg({ key: "sk-x", base: "https://example.invalid/v4/" });
+    const realFetch = window.fetch;
+    let calledUrl = "";
+    window.fetch = async u => { calledUrl = u; return new Response('{"choices":[{"message":{"content":"{}"}}]}', { status: 200 }); };
+    const r = await callVisionAPI("QQ==");
+    window.fetch = realFetch;
+    return calledUrl === "https://example.invalid/v4/chat/completions" && r.ok === true;
+  }, "base末尾斜杠归一+正常返回");
+  await checkA(async () => {
+    saveCfg({ key: "sk-x" });
+    const realFetch = window.fetch;
+    window.fetch = async () => new Response("{}", { status: 401 });
+    const r = await callVisionAPI("QQ==");
+    window.fetch = realFetch;
+    return r.ok === false && r.reason.indexOf("Key") >= 0;
+  }, "401→Key无效原因");
+  await checkA(async () => {
+    const realFetch = window.fetch;
+    window.fetch = async () => { throw new Error("net"); };
+    const r = await callVisionAPI("QQ==");
+    window.fetch = realFetch;
+    return r.ok === false && r.reason === "网络错误或超时";
+  }, "网络错误→原因");
+  try { saveCfg({ key: "", base: "" }); } catch (e) {}
+
   renderResults();
 })();
 

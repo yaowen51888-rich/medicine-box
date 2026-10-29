@@ -139,23 +139,31 @@ function buildVisionBody(base64, model) {
 
 async function callVisionAPI(base64) {
   const cfg = getCfg();
-  if (!cfg.key) return null;
+  if (!cfg.key) return { ok: false, reason: "未配置 Key，可在设置中配置" };
+  const base = cfg.base.trim().replace(/\/+$/, "");
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 20000);
   try {
-    const res = await fetch(cfg.base + "/chat/completions", {
+    const res = await fetch(base + "/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + cfg.key },
       body: JSON.stringify(buildVisionBody(base64, cfg.model)),
       signal: ctrl.signal,
     });
-    if (!res.ok) return null;
-    const data = await res.json();
+    if (!res.ok) {
+      const reason = res.status === 401 || res.status === 403 ? "Key 无效或无权限"
+        : res.status === 404 ? "服务地址可能错误"
+        : res.status >= 500 ? "服务暂时不可用"
+        : "HTTP " + res.status;
+      return { ok: false, reason };
+    }
+    const data = await res.json().catch(() => null);
     const text = data && data.choices && data.choices[0] && data.choices[0].message
       ? data.choices[0].message.content : null;
-    if (typeof text !== "string") return null;
-    return parseAIResponse(text);
-  } catch { return null; } finally { clearTimeout(timer); }
+    if (typeof text !== "string") return { ok: false, reason: "返回格式异常" };
+    return { ok: true, ...parseAIResponse(text) };
+  } catch { return { ok: false, reason: "网络错误或超时" }; }
+  finally { clearTimeout(timer); }
 }
 
 function compressImage(file) {
@@ -265,6 +273,7 @@ async function renderDetail(id) {
   document.getElementById("d-name").value = m.name;
   document.getElementById("d-expiry").value = m.expiry;
   document.getElementById("d-note").value = m.note || "";
+  document.getElementById("detail-status").textContent = "";
   ["d-name", "d-expiry"].forEach(fid => setFieldError(document.getElementById(fid), false));
 }
 
@@ -273,6 +282,7 @@ function wireDetailScreen() {
     e.preventDefault();
     const name = document.getElementById("d-name");
     const expiry = document.getElementById("d-expiry");
+    const status = document.getElementById("detail-status");
     const nameOk = !!name.value.trim();
     const expiryOk = !!expiry.value;
     setFieldError(name, !nameOk);
@@ -283,20 +293,35 @@ function wireDetailScreen() {
     m.name = name.value.trim();
     m.expiry = expiry.value;
     m.note = document.getElementById("d-note").value.trim();
-    await dbUpdate(m);
+    try {
+      await dbUpdate(m);
+    } catch {
+      status.textContent = "保存失败：存储不可用";
+      return;
+    }
     location.hash = "#/";
   });
   document.getElementById("btn-dispose").addEventListener("click", async () => {
     const m = detailId === null ? null : await dbGet(detailId);
     if (!m) { location.hash = "#/"; return; }
     m.status = "disposed";
-    await dbUpdate(m);
+    try {
+      await dbUpdate(m);
+    } catch {
+      document.getElementById("detail-status").textContent = "操作失败：存储不可用";
+      return;
+    }
     location.hash = "#/";
   });
   document.getElementById("btn-delete").addEventListener("click", async () => {
     if (detailId === null) return;
     if (!window.confirm("确定删除这条记录？删除后无法恢复。")) return;
-    await dbDelete(detailId);
+    try {
+      await dbDelete(detailId);
+    } catch {
+      document.getElementById("detail-status").textContent = "删除失败：存储不可用";
+      return;
+    }
     detailId = null;
     location.hash = "#/";
   });
@@ -331,6 +356,7 @@ function wireSettingsScreen() {
 
 let pendingPhoto = null;
 let previewUrl = null;
+let reqSeq = 0;
 
 function blobToBase64(blob) {
   return new Promise((resolve, reject) => {
@@ -362,12 +388,14 @@ function resetAddForm() {
 }
 
 async function previewAndRecognize(file) {
+  const seq = ++reqSeq;
   const status = document.getElementById("recognize-status");
   const wrap = document.getElementById("photo-preview-wrap");
   const img = document.getElementById("photo-preview");
   status.classList.remove("is-error");
   try {
     const blob = await compressImage(file);
+    if (seq !== reqSeq) return;
     pendingPhoto = blob;
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     previewUrl = URL.createObjectURL(blob);
@@ -375,17 +403,20 @@ async function previewAndRecognize(file) {
     wrap.hidden = false;
     status.textContent = "识别中…";
     const r = await callVisionAPI(await blobToBase64(blob));
-    if (r && (r.name || r.expiry)) {
+    if (seq !== reqSeq) return;
+    if (r.ok && (r.name || r.expiry)) {
       if (r.name) document.getElementById("f-name").value = r.name;
       if (r.expiry) document.getElementById("f-expiry").value = r.expiry;
       status.textContent = "已识别，请核对后保存";
+    } else if (r.ok) {
+      status.textContent = "未识别出药名和效期，请手动填写";
+      status.classList.add("is-error");
     } else {
-      status.textContent = getCfg().key
-        ? "识别失败，请手动填写"
-        : "识别失败，请手动填写（可在设置中配置识别服务）";
+      status.textContent = `识别失败（${r.reason}），请手动填写`;
       status.classList.add("is-error");
     }
   } catch {
+    if (seq !== reqSeq) return;
     pendingPhoto = null;
     wrap.hidden = true;
     status.textContent = "图片读取失败，请重新拍摄";
@@ -403,17 +434,24 @@ function wireAddScreen() {
     e.preventDefault();
     const name = document.getElementById("f-name");
     const expiry = document.getElementById("f-expiry");
+    const status = document.getElementById("recognize-status");
     const nameOk = !!name.value.trim();
     const expiryOk = !!expiry.value;
     setFieldError(name, !nameOk);
     setFieldError(expiry, !expiryOk);
     if (!nameOk || !expiryOk) return;
-    await dbAdd({
-      name: name.value.trim(),
-      expiry: expiry.value,
-      note: document.getElementById("f-note").value.trim(),
-      photo: pendingPhoto,
-    });
+    try {
+      await dbAdd({
+        name: name.value.trim(),
+        expiry: expiry.value,
+        note: document.getElementById("f-note").value.trim(),
+        photo: pendingPhoto,
+      });
+    } catch {
+      status.textContent = "保存失败：存储不可用";
+      status.classList.add("is-error");
+      return;
+    }
     resetAddForm();
     location.hash = "#/";
   });
@@ -422,6 +460,7 @@ function wireAddScreen() {
 function initApp() {
   if (!document.getElementById("app")) return;
   window.addEventListener("hashchange", route);
+  document.getElementById("fab-add").addEventListener("click", () => { location.hash = "#/add"; });
   wireAddScreen();
   wireDetailScreen();
   wireSettingsScreen();

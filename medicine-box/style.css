@@ -25,7 +25,7 @@
 html { -webkit-text-size-adjust: 100%; }
 
 body {
-  font-family: "Manrope", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   font-size: 16px;
   line-height: 24px;
   color: var(--text);

@@ -6,9 +6,6 @@
 <title>药箱管家 · 家庭药品效期提醒</title>
 <meta name="description" content="拍照录入药品，自动识别药名和有效期，过期前提醒你该扔的药。">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💊</text></svg>">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -106,6 +103,7 @@
         <input id="d-note" type="text">
       </div>
       <button type="submit" class="btn btn-primary btn-block">保存修改</button>
+      <p id="detail-status" class="recognize-status" aria-live="polite"></p>
     </form>
 
     <div class="danger-zone">
