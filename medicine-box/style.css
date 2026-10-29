@@ -249,6 +249,52 @@ button, a { font: inherit; color: inherit; }
 .tab:hover { color: var(--text); }
 .tab[aria-current="page"] { color: var(--text); font-weight: 600; }
 
+/* ---------- 录入 ---------- */
+
+.btn-block { width: 100%; }
+
+.photo-preview {
+  display: block;
+  width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  margin-top: 16px;
+}
+
+.recognize-status {
+  margin: 8px 0 16px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--muted);
+}
+.recognize-status.is-error { color: var(--orange); }
+
+.field { margin-bottom: 16px; }
+.field label {
+  display: block;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.field input {
+  width: 100%;
+  padding: 12px;
+  font: inherit;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-btn);
+  background: var(--surface);
+  transition: border-color 200ms var(--ease);
+}
+.field input:hover { border-color: #C9C9C0; }
+.field input:focus { outline: 2px solid var(--text); outline-offset: 2px; }
+.field.is-error input { border-color: var(--red); }
+.field-error { margin-top: 4px; font-size: 14px; line-height: 20px; color: var(--red); }
+
 /* ---------- 动效偏好 ---------- */
 
 @media (prefers-reduced-motion: reduce) {

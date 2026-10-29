@@ -201,6 +201,7 @@ function route() {
     else t.removeAttribute("aria-current");
   });
   if (key === "/") renderHome();
+  if (key === "/add") resetAddForm();
   if (key === "detail") renderDetail(Number(detailMatch[1]));
 }
 
@@ -245,9 +246,102 @@ async function renderHome() {
 
 function renderDetail() { /* Task 6 实现 */ }
 
+// ---------- 录入屏 ----------
+
+let pendingPhoto = null;
+let previewUrl = null;
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result.split(",")[1]);
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(blob);
+  });
+}
+
+function setFieldError(input, show) {
+  input.closest(".field").classList.toggle("is-error", show);
+  const err = input.closest(".field").querySelector(".field-error");
+  if (err) err.hidden = !show;
+}
+
+function resetAddForm() {
+  const form = document.getElementById("add-form");
+  if (!form) return;
+  form.reset();
+  pendingPhoto = null;
+  if (previewUrl) { URL.revokeObjectURL(previewUrl); previewUrl = null; }
+  document.getElementById("photo-preview-wrap").hidden = true;
+  document.getElementById("photo-input").value = "";
+  const status = document.getElementById("recognize-status");
+  status.textContent = "";
+  status.classList.remove("is-error");
+  ["f-name", "f-expiry"].forEach(id => setFieldError(document.getElementById(id), false));
+}
+
+async function previewAndRecognize(file) {
+  const status = document.getElementById("recognize-status");
+  const wrap = document.getElementById("photo-preview-wrap");
+  const img = document.getElementById("photo-preview");
+  status.classList.remove("is-error");
+  try {
+    const blob = await compressImage(file);
+    pendingPhoto = blob;
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    previewUrl = URL.createObjectURL(blob);
+    img.src = previewUrl;
+    wrap.hidden = false;
+    status.textContent = "识别中…";
+    const r = await callVisionAPI(await blobToBase64(blob));
+    if (r && (r.name || r.expiry)) {
+      if (r.name) document.getElementById("f-name").value = r.name;
+      if (r.expiry) document.getElementById("f-expiry").value = r.expiry;
+      status.textContent = "已识别，请核对后保存";
+    } else {
+      status.textContent = getCfg().key
+        ? "识别失败，请手动填写"
+        : "识别失败，请手动填写（可在设置中配置识别服务）";
+      status.classList.add("is-error");
+    }
+  } catch {
+    pendingPhoto = null;
+    wrap.hidden = true;
+    status.textContent = "图片读取失败，请重新拍摄";
+    status.classList.add("is-error");
+  }
+}
+
+function wireAddScreen() {
+  document.getElementById("pick-photo").addEventListener("click", () =>
+    document.getElementById("photo-input").click());
+  document.getElementById("photo-input").addEventListener("change", e => {
+    if (e.target.files[0]) previewAndRecognize(e.target.files[0]);
+  });
+  document.getElementById("add-form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const name = document.getElementById("f-name");
+    const expiry = document.getElementById("f-expiry");
+    const nameOk = !!name.value.trim();
+    const expiryOk = !!expiry.value;
+    setFieldError(name, !nameOk);
+    setFieldError(expiry, !expiryOk);
+    if (!nameOk || !expiryOk) return;
+    await dbAdd({
+      name: name.value.trim(),
+      expiry: expiry.value,
+      note: document.getElementById("f-note").value.trim(),
+      photo: pendingPhoto,
+    });
+    resetAddForm();
+    location.hash = "#/";
+  });
+}
+
 function initApp() {
   if (!document.getElementById("app")) return;
   window.addEventListener("hashchange", route);
+  wireAddScreen();
   dbOpen().catch(() => {
     document.getElementById("storage-banner").hidden = false;
     document.getElementById("fab-add").disabled = true;
